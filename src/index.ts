@@ -37,14 +37,14 @@ const getHeadersWithAuthorization = (headers:any, token: string) => {
  * TODO: configuration
  */
 class ApiService implements IApiService {
-    private getAuthToken: () => Promise<string> | string
+    private getAccessToken: (() => Promise<string> | string ) | undefined
 
     private authenticate(): Promise<string> {
         return new Promise((resolve, reject) => {
-            this.getAuthToken ? 
-            resolve(this.getAuthToken()) 
+            this.getAccessToken ? 
+            resolve(this.getAccessToken()) 
             : 
-            resolve(localStorage.getItem('accessToken'))
+            resolve(localStorage.getItem('accessToken') || '')
         }) 
     }
 
@@ -64,8 +64,8 @@ class ApiService implements IApiService {
             });
     };
 
-    public setConfiguration (config) {
-        this.getAuthToken = config.getAuthToken
+    public setConfiguration (config: config) {
+        this.getAccessToken = config.getAccessToken
     }
 
     public get (url: string, data={}, options:fetchOptions={}) {

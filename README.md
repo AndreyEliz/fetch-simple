@@ -1,12 +1,11 @@
 Simple wrapper over js fetch api.
-It simplifys work with fetch requests, responses and errors.
 
 dependensies:
 
 'whatwg-fetch'
 'react-toastify' for notifications;
 
-usage:
+usage: 
 
 get(url, data, options) - GET
 remove(url, data, options) - DELETE
