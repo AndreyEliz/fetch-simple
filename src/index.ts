@@ -1,6 +1,3 @@
-import 'whatwg-fetch'; // fetch polifill
-import {toast} from 'react-toastify';
-
 type responseType = 'text' | 'json' | 'blob' | 'formData' | 'arrayBuffer'
 
 type fetchOptions = {
@@ -12,7 +9,7 @@ type fetchOptions = {
 
 type config = {
     getAccessToken?(): Promise<string> | string;
-    errorHandlers?: any
+    onError?(error: Error, response: Response): any
 }
 
 interface IApiService {
@@ -22,7 +19,6 @@ interface IApiService {
     post(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     postJSON(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     postFile(url: string, file: any, options: fetchOptions): Promise<Response | never | never>
-    getFileAsDataUrl(url: string, options: fetchOptions): Promise<Response | never | never>
     put(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     putJSON(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     setConfiguration(config: config): void
@@ -34,10 +30,14 @@ const getHeadersWithAuthorization = (headers:any, token: string) => {
 };
 
 /**
- * TODO: configuration
+ * TODO:
+ * - improve error handling (default error handling for typical network statuses),
+ * - fetching progress
+ * - disable parsing json from text responses
  */
 class ApiService implements IApiService {
     private getAccessToken: (() => Promise<string> | string ) | undefined
+    private onError?: (error: Error, response: Response) => any
 
     private authenticate(): Promise<string> {
         return new Promise((resolve, reject) => {
@@ -57,15 +57,33 @@ class ApiService implements IApiService {
                 };
                 return fetch(url, {...options, headers})
             }) 
-            .then(handleErrors)
+            .then(this.handleErrors)
             .then((response: Response) => handleResponse(response, options.responseType))
             .catch((e) => {
                 throw e;
             });
     };
 
+    private throwNetworkError(remoteError:Error, response:Response) {
+        if (this.onError) this.onError(remoteError, response)
+        if (response.status === 401) throw new AuthError(remoteError.message)
+        if (response.status === 404) throw new NotFoundError(remoteError.message)
+        if (response.status === 400) throw new BadRequestError(remoteError.message)
+        else throw Error(remoteError.message);
+    };
+    
+    private handleErrors(response:Response): Response | PromiseLike<any>  {
+        return response.ok ?
+            Promise.resolve(response)
+            :
+            response.json()
+                .then((e) => this.throwNetworkError(e, response))
+                .catch((e) => this.throwNetworkError(e, response));
+    };
+
     public setConfiguration (config: config) {
         this.getAccessToken = config.getAccessToken
+        this.onError = config.onError
     }
 
     public get (url: string, data={}, options:fetchOptions={}) {
@@ -133,13 +151,6 @@ class ApiService implements IApiService {
         return postData();
     };
 
-    public getFileAsDataUrl (url:string, options:fetchOptions={}) {
-        const getData = () => this.fetchData(url, {
-            ...options
-        });
-        return getData();
-    };
-
     public put (url:string, data={}, options:fetchOptions={}) {
         const putData = () => this.fetchData(url, {
             method: 'PUT',
@@ -203,22 +214,6 @@ const handleResponse = (response:Response, asType: responseType = 'text') => {
     else if (asType === 'json') return response.json()
 };
 
-const throwNetworkError = (remoteError:Error, response:Response) => {
-    if (response.status === 401) throw new AuthError(remoteError.message);
-    if (response.status === 404) throw new NotFoundError(remoteError.message);
-    if (response.status === 400) throw new BadRequestError(remoteError.message);
-    else throw Error(remoteError.message);
-};
-
-const handleErrors = (response:Response) => {
-    return response.ok ?
-        Promise.resolve(response)
-        :
-        response.json()
-            .then((e) => throwNetworkError(e, response))
-            .catch((e) => throwNetworkError(e, response));
-};
-
 /**
  * Authentication error
  */
@@ -249,7 +244,7 @@ export class NotFoundError extends Error {
     }
 }
 
-const api = new ApiService();
+const sfApi = new ApiService();
 
 export const { 
     get,
@@ -258,31 +253,9 @@ export const {
     post,
     postJSON,
     postFile,
-    getFileAsDataUrl,
     put,
     putJSON,
-} = api;
+    setConfiguration,
+} = sfApi;
 
-
-/**
- * TODO - rewrite on thunk
- * @param dispatch 
- * @param error 
- * @param customErrorHandlers 
- */
-export const handleError = (error: Error, customErrorHandlers={}) => {
-    const toastId = 'connectionError';
-
-    const errorHandlers: any = {
-        'AuthError': (data: any) => {
-            toast('Ошибка авторизации', {type: 'error', toastId: data.toastId});
-        },
-        'BadRequestError': (data: any) => toast(data.error.message, {type: 'error', toastId: data.toastId}),
-        'NotFoundError': (data: any) => toast('Запрашиваемый ресурс не найден', {type: 'error', toastId: data.toastId}),
-        'unknownError': (data: any) => toast('Ошибка соединения', {type: 'error', toastId: data.toastId}),
-        ...customErrorHandlers
-    };
-    
-    const errorHandler = errorHandlers[error.name] || errorHandlers.unknownError;
-    errorHandler({toastId, error});
-};
+export default sfApi;
