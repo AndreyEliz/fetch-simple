@@ -50,11 +50,11 @@ For *post* and *put* methods payload will be transformed to `FormData`
 
 > **Note**: By default header `'Content-Type': 'application/x-www-form-urlencoded'` is setted for all this requests
 
-- `options` - *object*, request options and configurations:
--- **_method_** - *string*, request method (*GET, POST, PUT, DELETE, OPTION* or whatever)
--- **_headers_** - *object*, define additional request headers ({'header-name': 'header-value'})
--- **_responseType_** - *string*, one of  `'text'`  `'json'` `'blob'` `'formData'` `'arrayBuffer'` - expected type of response. By default `'text'` is used (now it also try to parse json, but this will be deprecated in future)
--- **_body_** - *string* or *FormData*, request body can be also set directly if some custom logic is needed
+- `options` - *object*, options and configurations:
+  - **_method_** - *string*, request method (*GET, POST, PUT, DELETE, OPTION* or whatever)
+  - **_headers_** - *object*, define additional request headers ({'header-name': 'header-value'})
+  - **_responseType_** - *string*, one of  `'text'`  `'json'` `'blob'` `'formData'` `'arrayBuffer'` - expected type of response. By default `'text'` is used (now it also try to parse json, but this will be deprecated in future)
+  - **_body_** - *string* or *FormData*, request body can be also set directly if some custom logic is needed
 
 ##### additional methods:
 
