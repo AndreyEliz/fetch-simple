@@ -1,3 +1,7 @@
+import AuthError from "./errors/AuthError";
+import NotFoundError from "./errors/NotFoundError";
+import BadRequestError from "./errors/BadRequestError";
+
 type responseType = 'text' | 'json' | 'blob' | 'formData' | 'arrayBuffer'
 
 type fetchOptions = {
@@ -7,7 +11,7 @@ type fetchOptions = {
     body?: string | FormData;
 };
 
-type config = {
+type configType = {
     getAccessToken?(): Promise<string> | string;
     onError?(error: Error, response: Response): any
 }
@@ -21,7 +25,7 @@ interface IApiService {
     postFile(url: string, file: any, options: fetchOptions): Promise<Response | never | never>
     put(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     putJSON(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
-    setConfiguration(config: config): void
+    setConfiguration(config: configType): void
 }
 
 const getHeadersWithAuthorization = (headers:any, token: string) => {
@@ -36,10 +40,11 @@ const getHeadersWithAuthorization = (headers:any, token: string) => {
  * - disable parsing json from text responses
  */
 class ApiService implements IApiService {
+
     private getAccessToken: (() => Promise<string> | string ) | undefined
     private onError?: (error: Error, response: Response) => any
 
-    private authenticate(): Promise<string> {
+    private authenticate = (): Promise<string> => {
         return new Promise((resolve, reject) => {
             this.getAccessToken ? 
             resolve(this.getAccessToken()) 
@@ -48,7 +53,7 @@ class ApiService implements IApiService {
         }) 
     }
 
-    private fetchData (url:string, options:fetchOptions={}) {
+    private fetchData = (url:string, options:fetchOptions={}) => {
         return this.authenticate()
             .then((token) => {
                 const headers = {
@@ -64,7 +69,7 @@ class ApiService implements IApiService {
             });
     };
 
-    private throwNetworkError(remoteError:Error, response:Response) {
+    private throwNetworkError = (remoteError:Error, response:Response) => {
         if (this.onError) this.onError(remoteError, response)
         if (response.status === 401) throw new AuthError(remoteError.message)
         if (response.status === 404) throw new NotFoundError(remoteError.message)
@@ -72,7 +77,7 @@ class ApiService implements IApiService {
         else throw Error(remoteError.message);
     };
     
-    private handleErrors(response:Response): Response | PromiseLike<any>  {
+    private handleErrors = (response:Response): Response | PromiseLike<any> => {
         return response.ok ?
             Promise.resolve(response)
             :
@@ -81,22 +86,22 @@ class ApiService implements IApiService {
                 .catch((e) => this.throwNetworkError(e, response));
     };
 
-    public setConfiguration (config: config) {
+    public setConfiguration = (config: configType) => {
         this.getAccessToken = config.getAccessToken
         this.onError = config.onError
     }
 
-    public get (url: string, data={}, options:fetchOptions={}) {
+    public get = (url: string, data={}, options:fetchOptions={}) => {
         const requestData = generateFormData(data);
         const requestUrl = requestData ? `${url}?${requestData}` : url;
         const getData = () => this.fetchData(requestUrl, {
             method: 'GET',
             ...options
-    });
+        });
         return getData();
     }
 
-    public remove (url: string, data={}, options:fetchOptions={}) {
+    public remove = (url: string, data={}, options:fetchOptions={}) => {
         const requestData = generateFormData(data);
         const requestUrl = requestData ? `${url}?${requestData}` : url;
         const getData = () => this.fetchData(requestUrl, {
@@ -106,7 +111,7 @@ class ApiService implements IApiService {
         return getData();
    };
 
-    public removeJSON (url: string, data={}, options:fetchOptions={}) {
+    public removeJSON = (url: string, data={}, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         options.headers['Content-Type'] = 'application/json';
         options.headers['Accept'] = '*/*';
@@ -118,7 +123,7 @@ class ApiService implements IApiService {
         return removeData();
     };
 
-    public post (url: string, data={}, options:fetchOptions={}) {
+    public post = (url: string, data={}, options:fetchOptions={}) => {
         const postData = () => this.fetchData(url, {
             method: 'POST',
             ...options,
@@ -127,7 +132,7 @@ class ApiService implements IApiService {
         return postData();
     };
 
-    public postJSON (url: string, data={}, options:fetchOptions={}) {
+    public postJSON = (url: string, data={}, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         options.headers['Content-Type'] = 'application/json';
         options.headers['Accept'] = 'application/json';
@@ -139,7 +144,7 @@ class ApiService implements IApiService {
         return postData();
     };
 
-    public postFile (url:string, file:any=null, options:fetchOptions={}) {
+    public postFile = (url:string, file:any=null, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         const formData = new FormData();
         formData.append('file', file);
@@ -151,7 +156,7 @@ class ApiService implements IApiService {
         return postData();
     };
 
-    public put (url:string, data={}, options:fetchOptions={}) {
+    public put = (url:string, data={}, options:fetchOptions={}) => {
         const putData = () => this.fetchData(url, {
             method: 'PUT',
             ...options,
@@ -160,7 +165,7 @@ class ApiService implements IApiService {
         return putData();
     };
 
-    public putJSON (url:string, data={}, options:fetchOptions={}) {
+    public putJSON = (url:string, data={}, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         options.headers['Content-Type'] = 'application/json';
         options.headers['Accept'] = '*/*';
@@ -177,9 +182,8 @@ class ApiService implements IApiService {
 
 const generateFormData = (obj:any) => {
     let formData = '';
-    for (let key in obj ) {
+    for (const key in obj ) {
         if (obj[key] || obj[key] === 0 || obj[key] === '') {
-            // eslint-disable-next-line
             if (formData != '') {
                 formData += '&';
             }
@@ -214,37 +218,7 @@ const handleResponse = (response:Response, asType: responseType = 'text') => {
     else if (asType === 'json') return response.json()
 };
 
-/**
- * Authentication error
- */
-export class AuthError extends Error {
-    constructor(...props:any[]) {
-        super(...props);
-        this.name = 'AuthError';
-    }
-}
-
-/**
- * Bad request error
- */
-export class BadRequestError extends Error {
-    constructor(...props:any[]) {
-        super(...props);
-        this.name = 'BadRequestError';
-    }
-}
-
-/**
- * Not found error
- */
-export class NotFoundError extends Error {
-    constructor(...props:any[]) {
-        super(...props);
-        this.name = 'NotFoundError';
-    }
-}
-
-const sfApi = new ApiService();
+const sfApi = new ApiService;
 
 export const { 
     get,
