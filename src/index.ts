@@ -1,5 +1,6 @@
-import 'whatwg-fetch'; // fetch polifill
-import {toast} from 'react-toastify';
+import AuthError from "./errors/AuthError";
+import NotFoundError from "./errors/NotFoundError";
+import BadRequestError from "./errors/BadRequestError";
 
 type responseType = 'text' | 'json' | 'blob' | 'formData' | 'arrayBuffer'
 
@@ -10,9 +11,9 @@ type fetchOptions = {
     body?: string | FormData;
 };
 
-type config = {
+type configType = {
     getAccessToken?(): Promise<string> | string;
-    errorHandlers?: any
+    onError?(error: Error, response: Response): any
 }
 
 interface IApiService {
@@ -22,10 +23,9 @@ interface IApiService {
     post(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     postJSON(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     postFile(url: string, file: any, options: fetchOptions): Promise<Response | never | never>
-    getFileAsDataUrl(url: string, options: fetchOptions): Promise<Response | never | never>
     put(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
     putJSON(url: string, data: object, options: fetchOptions): Promise<Response | never | never>
-    setConfiguration(config: config): void
+    setConfiguration(config: configType): void
 }
 
 const getHeadersWithAuthorization = (headers:any, token: string) => {
@@ -34,12 +34,17 @@ const getHeadersWithAuthorization = (headers:any, token: string) => {
 };
 
 /**
- * TODO: configuration
+ * TODO:
+ * - improve error handling (default error handling for typical network statuses),
+ * - fetching progress
+ * - disable parsing json from text responses
  */
 class ApiService implements IApiService {
-    private getAccessToken: (() => Promise<string> | string ) | undefined
 
-    private authenticate(): Promise<string> {
+    private getAccessToken: (() => Promise<string> | string ) | undefined
+    private onError?: (error: Error, response: Response) => any
+
+    private authenticate = (): Promise<string> => {
         return new Promise((resolve, reject) => {
             this.getAccessToken ? 
             resolve(this.getAccessToken()) 
@@ -48,7 +53,7 @@ class ApiService implements IApiService {
         }) 
     }
 
-    private fetchData (url:string, options:fetchOptions={}) {
+    private fetchData = (url:string, options:fetchOptions={}) => {
         return this.authenticate()
             .then((token) => {
                 const headers = {
@@ -57,28 +62,46 @@ class ApiService implements IApiService {
                 };
                 return fetch(url, {...options, headers})
             }) 
-            .then(handleErrors)
+            .then(this.handleErrors)
             .then((response: Response) => handleResponse(response, options.responseType))
             .catch((e) => {
                 throw e;
             });
     };
 
-    public setConfiguration (config: config) {
+    private throwNetworkError = (remoteError:Error, response:Response) => {
+        if (this.onError) this.onError(remoteError, response)
+        if (response.status === 401) throw new AuthError(remoteError.message)
+        if (response.status === 404) throw new NotFoundError(remoteError.message)
+        if (response.status === 400) throw new BadRequestError(remoteError.message)
+        else throw Error(remoteError.message);
+    };
+    
+    private handleErrors = (response:Response): Response | PromiseLike<any> => {
+        return response.ok ?
+            Promise.resolve(response)
+            :
+            response.json()
+                .then((e) => this.throwNetworkError(e, response))
+                .catch((e) => this.throwNetworkError(e, response));
+    };
+
+    public setConfiguration = (config: configType) => {
         this.getAccessToken = config.getAccessToken
+        this.onError = config.onError
     }
 
-    public get (url: string, data={}, options:fetchOptions={}) {
+    public get = (url: string, data={}, options:fetchOptions={}) => {
         const requestData = generateFormData(data);
         const requestUrl = requestData ? `${url}?${requestData}` : url;
         const getData = () => this.fetchData(requestUrl, {
             method: 'GET',
             ...options
-    });
+        });
         return getData();
     }
 
-    public remove (url: string, data={}, options:fetchOptions={}) {
+    public remove = (url: string, data={}, options:fetchOptions={}) => {
         const requestData = generateFormData(data);
         const requestUrl = requestData ? `${url}?${requestData}` : url;
         const getData = () => this.fetchData(requestUrl, {
@@ -88,7 +111,7 @@ class ApiService implements IApiService {
         return getData();
    };
 
-    public removeJSON (url: string, data={}, options:fetchOptions={}) {
+    public removeJSON = (url: string, data={}, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         options.headers['Content-Type'] = 'application/json';
         options.headers['Accept'] = '*/*';
@@ -100,7 +123,7 @@ class ApiService implements IApiService {
         return removeData();
     };
 
-    public post (url: string, data={}, options:fetchOptions={}) {
+    public post = (url: string, data={}, options:fetchOptions={}) => {
         const postData = () => this.fetchData(url, {
             method: 'POST',
             ...options,
@@ -109,7 +132,7 @@ class ApiService implements IApiService {
         return postData();
     };
 
-    public postJSON (url: string, data={}, options:fetchOptions={}) {
+    public postJSON = (url: string, data={}, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         options.headers['Content-Type'] = 'application/json';
         options.headers['Accept'] = 'application/json';
@@ -121,7 +144,7 @@ class ApiService implements IApiService {
         return postData();
     };
 
-    public postFile (url:string, file:any=null, options:fetchOptions={}) {
+    public postFile = (url:string, file:any=null, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         const formData = new FormData();
         formData.append('file', file);
@@ -133,14 +156,7 @@ class ApiService implements IApiService {
         return postData();
     };
 
-    public getFileAsDataUrl (url:string, options:fetchOptions={}) {
-        const getData = () => this.fetchData(url, {
-            ...options
-        });
-        return getData();
-    };
-
-    public put (url:string, data={}, options:fetchOptions={}) {
+    public put = (url:string, data={}, options:fetchOptions={}) => {
         const putData = () => this.fetchData(url, {
             method: 'PUT',
             ...options,
@@ -149,7 +165,7 @@ class ApiService implements IApiService {
         return putData();
     };
 
-    public putJSON (url:string, data={}, options:fetchOptions={}) {
+    public putJSON = (url:string, data={}, options:fetchOptions={}) => {
         options.headers = options.headers || {};
         options.headers['Content-Type'] = 'application/json';
         options.headers['Accept'] = '*/*';
@@ -166,9 +182,8 @@ class ApiService implements IApiService {
 
 const generateFormData = (obj:any) => {
     let formData = '';
-    for (let key in obj ) {
+    for (const key in obj ) {
         if (obj[key] || obj[key] === 0 || obj[key] === '') {
-            // eslint-disable-next-line
             if (formData != '') {
                 formData += '&';
             }
@@ -203,53 +218,7 @@ const handleResponse = (response:Response, asType: responseType = 'text') => {
     else if (asType === 'json') return response.json()
 };
 
-const throwNetworkError = (remoteError:Error, response:Response) => {
-    if (response.status === 401) throw new AuthError(remoteError.message);
-    if (response.status === 404) throw new NotFoundError(remoteError.message);
-    if (response.status === 400) throw new BadRequestError(remoteError.message);
-    else throw Error(remoteError.message);
-};
-
-const handleErrors = (response:Response) => {
-    return response.ok ?
-        Promise.resolve(response)
-        :
-        response.json()
-            .then((e) => throwNetworkError(e, response))
-            .catch((e) => throwNetworkError(e, response));
-};
-
-/**
- * Authentication error
- */
-export class AuthError extends Error {
-    constructor(...props:any[]) {
-        super(...props);
-        this.name = 'AuthError';
-    }
-}
-
-/**
- * Bad request error
- */
-export class BadRequestError extends Error {
-    constructor(...props:any[]) {
-        super(...props);
-        this.name = 'BadRequestError';
-    }
-}
-
-/**
- * Not found error
- */
-export class NotFoundError extends Error {
-    constructor(...props:any[]) {
-        super(...props);
-        this.name = 'NotFoundError';
-    }
-}
-
-const api = new ApiService();
+const sfApi = new ApiService;
 
 export const { 
     get,
@@ -258,31 +227,9 @@ export const {
     post,
     postJSON,
     postFile,
-    getFileAsDataUrl,
     put,
     putJSON,
-} = api;
+    setConfiguration,
+} = sfApi;
 
-
-/**
- * TODO - rewrite on thunk
- * @param dispatch 
- * @param error 
- * @param customErrorHandlers 
- */
-export const handleError = (error: Error, customErrorHandlers={}) => {
-    const toastId = 'connectionError';
-
-    const errorHandlers: any = {
-        'AuthError': (data: any) => {
-            toast('Ошибка авторизации', {type: 'error', toastId: data.toastId});
-        },
-        'BadRequestError': (data: any) => toast(data.error.message, {type: 'error', toastId: data.toastId}),
-        'NotFoundError': (data: any) => toast('Запрашиваемый ресурс не найден', {type: 'error', toastId: data.toastId}),
-        'unknownError': (data: any) => toast('Ошибка соединения', {type: 'error', toastId: data.toastId}),
-        ...customErrorHandlers
-    };
-    
-    const errorHandler = errorHandlers[error.name] || errorHandlers.unknownError;
-    errorHandler({toastId, error});
-};
+export default sfApi;
