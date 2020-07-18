@@ -1,7 +1,7 @@
 {
-  "name": "fetch-simple",
+  "name": "sfapi",
   "version": "1.0.0",
-  "description": "Simple fetch api wrapper for common use",
+  "description": "Simple fetch wrapper ",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "files": [

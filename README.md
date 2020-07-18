@@ -7,7 +7,7 @@ No dependencies
 
 ### Install
 ```
-npm install fetch-simple
+npm install sfapi
 ```
 
 ### How to use 
@@ -22,7 +22,7 @@ get('https://jsonplaceholder.typicode.com/todos/1')
 or
 
 ```javascript
-import sfApi from 'fetch-simple'
+import sfApi from 'sfapi'
 
 sfApi.get('https://jsonplaceholder.typicode.com/todos/1')
     .then((jsonData) => console.log(jsonData))
