@@ -14,7 +14,7 @@ npm install sfapi
 ##### Simple example
 #
 ```javascript
-import { get } from 'fetch-simple'
+import { get } from 'sfapi'
 
 get('https://jsonplaceholder.typicode.com/todos/1')
     .then((jsonData) => console.log(jsonData))

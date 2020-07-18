@@ -1,6 +1,6 @@
 {
   "name": "sfapi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Simple fetch wrapper ",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -15,7 +15,7 @@
     "preversion": "npm run lint",
     "version": "npm run format && git add -A src",
     "postversion": "git push && git push --tags",
-    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
+    "format": "prettier --write \"src/**/*.ts\"",
     "lint": "tslint -p tsconfig.json"
   },
   "keywords": [
